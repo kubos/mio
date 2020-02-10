@@ -28,11 +28,28 @@ pub struct Selector {
 }
 
 impl Selector {
+    #[cfg(any(target_env = "uclibc"))]
+    pub fn new() -> io::Result<Selector> {
+        let epfd = unsafe {
+            cvt(libc::epoll_create1(libc::EPOLL_CLOEXEC))?
+        };
+
+        // offset by 1 to avoid choosing 0 as the id of a selector
+        let id = NEXT_ID.fetch_add(1, Ordering::Relaxed) + 1;
+
+        Ok(Selector {
+            id: id,
+            epfd: epfd,
+        })
+    }
+
+    #[cfg(any(not(target_env = "uclibc")))]
     pub fn new() -> io::Result<Selector> {
         let epfd = unsafe {
             // Emulate `epoll_create` by using `epoll_create1` if it's available
             // and otherwise falling back to `epoll_create` followed by a call to
             // set the CLOEXEC flag.
+            
             dlsym!(fn epoll_create1(c_int) -> c_int);
 
             match epoll_create1.get() {

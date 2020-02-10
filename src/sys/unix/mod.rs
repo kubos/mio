@@ -44,6 +44,7 @@ pub use iovec::IoVec;
 
 use std::os::unix::io::FromRawFd;
 
+#[cfg(any(not(target_env = "uclibc")))]
 pub fn pipe() -> ::io::Result<(Io, Io)> {
     // Use pipe2 for atomically setting O_CLOEXEC if we can, but otherwise
     // just fall back to using `pipe`.
@@ -70,6 +71,16 @@ pub fn pipe() -> ::io::Result<(Io, Io)> {
                 Ok((r, w))
             }
         }
+    }
+}
+
+#[cfg(any(target_env = "uclibc"))]
+pub fn pipe() -> ::io::Result<(Io, Io)> {
+    let mut pipes = [0; 2];
+    unsafe {
+        let flags = libc::O_NONBLOCK | libc::O_CLOEXEC;
+        cvt(libc::pipe2(pipes.as_mut_ptr(), flags))?;
+        Ok((Io::from_raw_fd(pipes[0]), Io::from_raw_fd(pipes[1])))
     }
 }
 
